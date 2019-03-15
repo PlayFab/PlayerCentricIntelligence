@@ -1,0 +1,11 @@
+{
+    "name": "AzureSqlDW",
+    "type": "Microsoft.DataFactory/factories/linkedservices",
+    "properties": {
+        "type": "AzureSqlDW",
+        "typeProperties": {
+            "connectionString": "integrated security=False;encrypt=True;connection timeout=30;data source=???.database.windows.net;initial catalog=???;user id=???",
+            "encryptedCredential": "???"
+        }
+    }
+}

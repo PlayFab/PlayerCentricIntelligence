@@ -1,0 +1,88 @@
+{
+    "$connections": {
+        "value": {
+            "kusto_1": {
+                "connectionId": "???",
+                "connectionName": "kusto-1",
+                "id": "???"
+            }
+        }
+    },
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "actions": {
+            "Create_target": {
+                "inputs": {
+                    "body": {
+                        "chartType": "Html Table",
+                        "cluster": "???",
+                        "csl": ".create table @{triggerBody()?['table_schema']}_@{triggerBody()?['table_name']} (@{triggerBody()?['col_list']})",
+                        "db": "Default"
+                    },
+                    "host": {
+                        "connection": {
+                            "name": "@parameters('$connections')['kusto_1']['connectionId']"
+                        }
+                    },
+                    "method": "post",
+                    "path": "/RunKustoAndVisualizeResults/true"
+                },
+                "runAfter": {
+                    "Drop_target_if_exists": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "ApiConnection"
+            },
+            "Drop_target_if_exists": {
+                "inputs": {
+                    "body": {
+                        "chartType": "Html Table",
+                        "cluster": "???",
+                        "csl": ".drop table @{triggerBody()?['table_schema']}_@{triggerBody()?['table_name']} ifexists",
+                        "db": "Default"
+                    },
+                    "host": {
+                        "connection": {
+                            "name": "@parameters('$connections')['kusto_1']['connectionId']"
+                        }
+                    },
+                    "method": "post",
+                    "path": "/RunKustoAndVisualizeResults/true"
+                },
+                "runAfter": {},
+                "type": "ApiConnection"
+            }
+        },
+        "contentVersion": "1.0.0.0",
+        "outputs": {},
+        "parameters": {
+            "$connections": {
+                "defaultValue": {},
+                "type": "Object"
+            }
+        },
+        "triggers": {
+            "manual": {
+                "inputs": {
+                    "schema": {
+                        "properties": {
+                            "col_list": {
+                                "type": "string"
+                            },
+                            "table_name": {
+                                "type": "string"
+                            },
+                            "table_schema": {
+                                "type": "string"
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "kind": "Http",
+                "type": "Request"
+            }
+        }
+    }
+}

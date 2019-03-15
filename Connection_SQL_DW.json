@@ -1,0 +1,17 @@
+{
+    "name": "Connection_SQL_DW",
+    "properties": {
+        "linkedServiceName": {
+            "referenceName": "AzureSqlDW",
+            "type": "LinkedServiceReference"
+        },
+        "type": "AzureSqlDWTable",
+        "structure": [
+            {
+                "name": "value",
+                "type": "Int32"
+            }
+        ]
+    },
+    "type": "Microsoft.DataFactory/factories/datasets"
+}

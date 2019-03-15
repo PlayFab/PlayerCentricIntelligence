@@ -1,0 +1,280 @@
+{
+    "name": "Pipeline_SQLDWToADX_Default_Incremental",
+    "properties": {
+        "activities": [
+            {
+                "name": "Lookup_ExtractObjectList",
+                "type": "Lookup",
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "typeProperties": {
+                    "source": {
+                        "type": "SqlDWSource",
+                        "sqlReaderQuery": "SELECT TABLE_SCHEMA, TABLE_NAME, INCREMENTAL_TIMESTAMP_FIELD, ROW_NUM\nFROM dbo.OBJECT_EXTRACT_LIST\nORDER BY ROW_NUM"
+                    },
+                    "dataset": {
+                        "referenceName": "Connection_SQL_DW",
+                        "type": "DatasetReference"
+                    },
+                    "firstRowOnly": false
+                }
+            },
+            {
+                "name": "ForEach_ExtractObject",
+                "type": "ForEach",
+                "dependsOn": [
+                    {
+                        "activity": "Lookup_ExtractObjectList",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "typeProperties": {
+                    "items": {
+                        "value": "@activity('Lookup_ExtractObjectList').output.value",
+                        "type": "Expression"
+                    },
+                    "batchCount": 4,
+                    "activities": [
+                        {
+                            "name": "Lookup_TableExists_HasDate",
+                            "type": "Lookup",
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "typeProperties": {
+                                "source": {
+                                    "type": "AzureDataExplorerSource",
+                                    "query": {
+                                        "value": ".show tables \n| where TableName == '@{item().TABLE_SCHEMA}_@{item().TABLE_NAME}'\n| count \n| project TableExists=case(Count > 0, 1, 0)",
+                                        "type": "Expression"
+                                    },
+                                    "queryTimeout": "00:10:00"
+                                },
+                                "dataset": {
+                                    "referenceName": "Connection_ADX_PlayFab_Default",
+                                    "type": "DatasetReference",
+                                    "parameters": {
+                                        "ADXTableName": "@{item().TABLE_SCHEMA}_@{item().TABLE_NAME}"
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "name": "If_TableExists_HasDate",
+                            "type": "IfCondition",
+                            "dependsOn": [
+                                {
+                                    "activity": "Lookup_TableExists_HasDate",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "typeProperties": {
+                                "expression": {
+                                    "value": "@and(equals(activity('Lookup_TableExists_HasDate').output.firstRow.TableExists, 1),not(empty(item().INCREMENTAL_TIMESTAMP_FIELD)))",
+                                    "type": "Expression"
+                                },
+                                "ifFalseActivities": [
+                                    {
+                                        "name": "Copy_SourceToADX_All",
+                                        "type": "Copy",
+                                        "dependsOn": [
+                                            {
+                                                "activity": "LogicApp_ADXDropCreate",
+                                                "dependencyConditions": [
+                                                    "Succeeded"
+                                                ]
+                                            }
+                                        ],
+                                        "policy": {
+                                            "timeout": "7.00:00:00",
+                                            "retry": 0,
+                                            "retryIntervalInSeconds": 30,
+                                            "secureOutput": false,
+                                            "secureInput": false
+                                        },
+                                        "typeProperties": {
+                                            "source": {
+                                                "type": "SqlDWSource",
+                                                "sqlReaderQuery": {
+                                                    "value": "SELECT *\nFROM [@{item().TABLE_SCHEMA}].[@{item().TABLE_NAME}] WITH (NOLOCK) \n--TL: Need brackets to delimit table names like \"user\" that match reserved words",
+                                                    "type": "Expression"
+                                                }
+                                            },
+                                            "sink": {
+                                                "type": "AzureDataExplorerSink"
+                                            },
+                                            "enableStaging": false,
+                                            "dataIntegrationUnits": 10
+                                        },
+                                        "inputs": [
+                                            {
+                                                "referenceName": "Connection_SQL_DW",
+                                                "type": "DatasetReference"
+                                            }
+                                        ],
+                                        "outputs": [
+                                            {
+                                                "referenceName": "Connection_ADX_PlayFab_Default",
+                                                "type": "DatasetReference",
+                                                "parameters": {
+                                                    "ADXTableName": "@{item().TABLE_SCHEMA}_@{item().TABLE_NAME}"
+                                                }
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "name": "LogicApp_ADXDropCreate",
+                                        "description": "Logic App (ADXControlApp_PlayFabDefault) runs:\n\n1) .drop table <object_name> if exists\n2) .create table <object_name> (<columns list>)",
+                                        "type": "WebActivity",
+                                        "dependsOn": [
+                                            {
+                                                "activity": "Lookup_GetColumnsList",
+                                                "dependencyConditions": [
+                                                    "Succeeded"
+                                                ]
+                                            }
+                                        ],
+                                        "policy": {
+                                            "timeout": "7.00:00:00",
+                                            "retry": 0,
+                                            "retryIntervalInSeconds": 30,
+                                            "secureOutput": false,
+                                            "secureInput": false
+                                        },
+                                        "typeProperties": {
+                                            "url": "https://prod-09.eastus2.logic.azure.com:443/workflows/9656f79e5b184d989bd10646795f4835/triggers/manual/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=AWCtyu3f574YcBZ4fi2bDBDTqLM1AjESY6SIqMWgWEE",
+                                            "method": "POST",
+                                            "headers": {
+                                                "Content-Type": "application/json"
+                                            },
+                                            "body": {
+                                                "value": "{\"table_schema\" : \"@{item().TABLE_SCHEMA}\",\n\"table_name\" : \"@{item().TABLE_NAME}\",\n\"col_list\" : \"@{activity('Lookup_GetColumnsList').output.firstRow.COL_LIST}\"}",
+                                                "type": "Expression"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "name": "Lookup_GetColumnsList",
+                                        "type": "Lookup",
+                                        "policy": {
+                                            "timeout": "7.00:00:00",
+                                            "retry": 0,
+                                            "retryIntervalInSeconds": 30,
+                                            "secureOutput": false,
+                                            "secureInput": false
+                                        },
+                                        "typeProperties": {
+                                            "source": {
+                                                "type": "SqlDWSource",
+                                                "sqlReaderQuery": {
+                                                    "value": "DECLARE @tableSchema NVARCHAR(100) = N'@{item().TABLE_SCHEMA}'\nDECLARE @tableName NVARCHAR(100) = N'@{item().TABLE_NAME}'\n\nDECLARE @colList NVARCHAR(MAX)\nSET @colList = N''\nDECLARE @i INT = 1\nDECLARE @rowCount INT = (\n\tSELECT MAX(ORDINAL_POSITION) \n    FROM INFORMATION_SCHEMA.COLUMNS\n    WHERE \n            TABLE_SCHEMA = @tableSchema\n\t\tAND\tTABLE_NAME = @tableName\n)\n\n\nWHILE @i <= @rowCount\n\tBEGIN\n\n\t\tSET @colList = @colList + (\n\n\t\t\tSELECT \n\t\t\t\tCASE WHEN ORDINAL_POSITION > 1 THEN ', ' ELSE '' END \n\t\t\t\t+ '[''' + COLUMN_NAME + ''']'\t/* TL: Need to delimit in case column names match reserved words */\n\t\t\t\t+ ': '\n\t\t\t\t+ CASE \n\t\t\t\t\tWHEN DATA_TYPE LIKE 'date%'\n\t\t\t\t\t\tTHEN 'datetime'\n\t\t\t\t\tWHEN DATA_TYPE LIKE '%char%'\n\t\t\t\t\t\tTHEN 'string'\n\t\t\t\t\tWHEN DATA_TYPE = 'bigint'\n\t\t\t\t\t\tTHEN 'long'\n\t\t\t\t\tWHEN DATA_TYPE LIKE '%int%'\n\t\t\t\t\t\tTHEN 'int'\n\t\t\t\t\tWHEN DATA_TYPE = 'bit'\n\t\t\t\t\t\tTHEN 'bool'\n\t\t\t\t\tWHEN DATA_TYPE IN ('decimal', 'numeric')\n\t\t\t\t\t\tTHEN 'decimal'\n\t\t\t\t\tWHEN DATA_TYPE IN ('floatl', 'real')\n\t\t\t\t\t\tTHEN 'real'\n\t\t\t\t\tELSE 'string'\n\t\t\t\tEND \n    \n\t\t\tFROM INFORMATION_SCHEMA.COLUMNS\n\t\t\tWHERE \n\t\t\t\t\tORDINAL_POSITION = @i\n\t\t\t\tAND TABLE_SCHEMA = @tableSchema\n\t\t\t\tAND TABLE_NAME = @tableName\n\t\t\n\t\t)\n\n\t\tSET @i += 1\n\n\tEND\n\nSELECT @colList AS COL_LIST",
+                                                    "type": "Expression"
+                                                }
+                                            },
+                                            "dataset": {
+                                                "referenceName": "Connection_SQL_DW",
+                                                "type": "DatasetReference"
+                                            }
+                                        }
+                                    }
+                                ],
+                                "ifTrueActivities": [
+                                    {
+                                        "name": "Lookup_LastTargetTS",
+                                        "type": "Lookup",
+                                        "policy": {
+                                            "timeout": "7.00:00:00",
+                                            "retry": 0,
+                                            "retryIntervalInSeconds": 30,
+                                            "secureOutput": false,
+                                            "secureInput": false
+                                        },
+                                        "typeProperties": {
+                                            "source": {
+                                                "type": "AzureDataExplorerSource",
+                                                "query": {
+                                                    "value": "@{item().TABLE_SCHEMA}_@{item().TABLE_NAME} | summarize LastTargetTS=max(['@{item().INCREMENTAL_TIMESTAMP_FIELD}'])",
+                                                    "type": "Expression"
+                                                },
+                                                "queryTimeout": "00:10:00"
+                                            },
+                                            "dataset": {
+                                                "referenceName": "Connection_ADX_TestDB",
+                                                "type": "DatasetReference",
+                                                "parameters": {
+                                                    "ADXTableName": "@{item().TABLE_SCHEMA}_@{item().TABLE_NAME}"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "name": "Copy_SourceToADX_Incremental",
+                                        "type": "Copy",
+                                        "dependsOn": [
+                                            {
+                                                "activity": "Lookup_LastTargetTS",
+                                                "dependencyConditions": [
+                                                    "Succeeded"
+                                                ]
+                                            }
+                                        ],
+                                        "policy": {
+                                            "timeout": "7.00:00:00",
+                                            "retry": 0,
+                                            "retryIntervalInSeconds": 30,
+                                            "secureOutput": false,
+                                            "secureInput": false
+                                        },
+                                        "typeProperties": {
+                                            "source": {
+                                                "type": "SqlDWSource",
+                                                "sqlReaderQuery": {
+                                                    "value": "SELECT *\nFROM [@{item().TABLE_SCHEMA}].[@{item().TABLE_NAME}] WITH (NOLOCK) \nWHERE [@{item().INCREMENTAL_TIMESTAMP_FIELD}] > '@{activity('Lookup_LastTargetTS').output.firstRow.LastTargetTS}'\n--TL: Need brackets to delimit table names like \"user\" that match reserved words",
+                                                    "type": "Expression"
+                                                }
+                                            },
+                                            "sink": {
+                                                "type": "AzureDataExplorerSink"
+                                            },
+                                            "enableStaging": false,
+                                            "dataIntegrationUnits": 10
+                                        },
+                                        "inputs": [
+                                            {
+                                                "referenceName": "Connection_SQL_DW",
+                                                "type": "DatasetReference"
+                                            }
+                                        ],
+                                        "outputs": [
+                                            {
+                                                "referenceName": "Connection_ADX_PlayFab_Default",
+                                                "type": "DatasetReference",
+                                                "parameters": {
+                                                    "ADXTableName": "@{item().TABLE_SCHEMA}_@{item().TABLE_NAME}"
+                                                }
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    "type": "Microsoft.DataFactory/factories/pipelines"
+}

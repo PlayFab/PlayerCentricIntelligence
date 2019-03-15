@@ -1,0 +1,21 @@
+{
+    "name": "ADX_PlayFab_Default",
+    "type": "Microsoft.DataFactory/factories/linkedservices",
+    "properties": {
+        "type": "AzureDataExplorer",
+        "typeProperties": {
+            "endpoint": "https://???.kusto.windows.net:443",
+            "tenant": "",
+            "servicePrincipalId": "",
+            "servicePrincipalKey": {
+                "type": "AzureKeyVaultSecret",
+                "store": {
+                    "referenceName": "AzureKeyVault",
+                    "type": "LinkedServiceReference"
+                },
+                "secretName": "secret-kusto-access-key"
+            },
+            "database": "Default"
+        }
+    }
+}
