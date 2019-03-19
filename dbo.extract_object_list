@@ -1,0 +1,54 @@
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE VIEW [dbo].[OBJECT_EXTRACT_LIST] AS SELECT 
+	 TB.TABLE_SCHEMA
+	,TB.TABLE_NAME
+
+	/*
+		Nearly every source table contains _fivetran_synced. If not, then specify a known alternative. If NULL, then Azure Data Factory will default to a destructive load.
+	*/
+	,CASE
+		
+		WHEN	TB.TABLE_SCHEMA = 'azure_function_appsflyer'
+			AND	TB.TABLE_NAME = 'country_daily'
+				THEN NULL
+
+		WHEN	TB.TABLE_SCHEMA = 'google_analytics'
+			AND	TB.TABLE_NAME = 'traffic_sources'
+				THEN NULL
+
+		WHEN	TB.TABLE_SCHEMA = 'upload'
+			AND TB.TABLE_NAME = 'kpi_targets'
+				THEN NULL
+		WHEN
+				TB.TABLE_SCHEMA = 'google_analytics'
+			AND	TB.TABLE_NAME = 'user'
+				THEN 'date'
+		
+		ELSE '_fivetran_synced'
+	
+	END														AS	INCREMENTAL_TIMESTAMP_FIELD
+	
+	,ROW_NUMBER() OVER (ORDER BY TABLE_SCHEMA, TABLE_NAME)	AS	ROW_NUM
+
+FROM INFORMATION_SCHEMA.TABLES					TB
+WHERE 1=1
+	
+	/* 
+		Exclude schemas that contain nothing of interest 
+	*/
+	AND	TB.TABLE_SCHEMA NOT IN ('dbo', '_fivetran_staging', 'google_play') 
+
+	/* 
+		Exclude unnecessary objects that are in otherwise necessary schemas AND/OR objects that are too large for a destructive load (e.g., Tap Cats).
+		If this section were larger, it could go in another table/view with a WHERE NOT EXISTS below. 
+	*/
+	AND TB.TABLE_NAME <> 'fivetran_audit'
+	AND TB.TABLE_NAME NOT LIKE 'vw_%';
+GO
+
+
