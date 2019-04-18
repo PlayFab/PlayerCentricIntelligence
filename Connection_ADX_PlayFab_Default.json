@@ -1,0 +1,22 @@
+{
+    "name": "Connection_ADX_PlayFab_Default",
+    "properties": {
+        "linkedServiceName": {
+            "referenceName": "ADX_PlayFab_Default",
+            "type": "LinkedServiceReference"
+        },
+        "parameters": {
+            "ADXTableName": {
+                "type": "String"
+            }
+        },
+        "type": "AzureDataExplorerTable",
+        "typeProperties": {
+            "table": {
+                "value": "@dataset().ADXTableName",
+                "type": "Expression"
+            }
+        }
+    },
+    "type": "Microsoft.DataFactory/factories/datasets"
+}
