@@ -2,9 +2,9 @@
     "$connections": {
         "value": {
             "kusto_1": {
-                "connectionId": "???",
+                "connectionId": "",
                 "connectionName": "kusto-1",
-                "id": "???"
+                "id": ""
             }
         }
     },
@@ -15,7 +15,7 @@
                 "inputs": {
                     "body": {
                         "chartType": "Html Table",
-                        "cluster": "???",
+                        "cluster": "",
                         "csl": ".create table @{triggerBody()?['table_schema']}_@{triggerBody()?['table_name']} (@{triggerBody()?['col_list']})",
                         "db": "Default"
                     },
@@ -38,7 +38,7 @@
                 "inputs": {
                     "body": {
                         "chartType": "Html Table",
-                        "cluster": "???",
+                        "cluster": "",
                         "csl": ".drop table @{triggerBody()?['table_schema']}_@{triggerBody()?['table_name']} ifexists",
                         "db": "Default"
                     },
