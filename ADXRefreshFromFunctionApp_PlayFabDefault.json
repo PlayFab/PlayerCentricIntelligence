@@ -1,0 +1,59 @@
+{
+    "$connections": {
+        "value": {
+            "kusto_1": {
+                "connectionId": "",
+                "connectionName": "kusto-1",
+                "id": ""
+            }
+        }
+    },
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "actions": {
+            "Set_or_replace_target_from_function": {
+                "inputs": {
+                    "body": {
+                        "chartType": "Html Table",
+                        "cluster": "",
+                        "csl": ".set-or-replace @{replace(triggerBody()?['fn_name'], 'fn_', '')} <| @{triggerBody()?['fn_name']}()",
+                        "db": "Default"
+                    },
+                    "host": {
+                        "connection": {
+                            "name": "@parameters('$connections')['kusto_1']['connectionId']"
+                        }
+                    },
+                    "method": "post",
+                    "path": "/RunKustoAndVisualizeResults/true"
+                },
+                "runAfter": {},
+                "type": "ApiConnection"
+            }
+        },
+        "contentVersion": "1.0.0.0",
+        "outputs": {},
+        "parameters": {
+            "$connections": {
+                "defaultValue": {},
+                "type": "Object"
+            }
+        },
+        "triggers": {
+            "manual": {
+                "inputs": {
+                    "schema": {
+                        "properties": {
+                            "fn_name": {
+                                "type": "string"
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "kind": "Http",
+                "type": "Request"
+            }
+        }
+    }
+}
