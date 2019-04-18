@@ -212,7 +212,7 @@
                                                 "queryTimeout": "00:10:00"
                                             },
                                             "dataset": {
-                                                "referenceName": "Connection_ADX_TestDB",
+                                                "referenceName": "Connection_ADX_PlayFab_Default",
                                                 "type": "DatasetReference",
                                                 "parameters": {
                                                     "ADXTableName": "@{item().TABLE_SCHEMA}_@{item().TABLE_NAME}"
@@ -269,6 +269,96 @@
                                         ]
                                     }
                                 ]
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "Lookup_RefreshFromFunctionList",
+                "type": "Lookup",
+                "dependsOn": [
+                    {
+                        "activity": "ForEach_ExtractObject",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "typeProperties": {
+                    "source": {
+                        "type": "AzureDataExplorerSource",
+                        "query": "metadata_refresh_from_function",
+                        "queryTimeout": "00:10:00"
+                    },
+                    "dataset": {
+                        "referenceName": "Connection_ADX_PlayFab_Default_RefreshFromFunctionList",
+                        "type": "DatasetReference"
+                    },
+                    "firstRowOnly": false
+                }
+            },
+            {
+                "name": "ForEach_RefreshFromFunctionItem",
+                "type": "ForEach",
+                "dependsOn": [
+                    {
+                        "activity": "Lookup_RefreshFromFunctionList",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "typeProperties": {
+                    "items": {
+                        "value": "@activity('Lookup_RefreshFromFunctionList').output.value",
+                        "type": "Expression"
+                    },
+                    "batchCount": 4,
+                    "activities": [
+                        {
+                            "name": "LogicApps_RefreshFromFunction",
+                            "type": "WebActivity",
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "typeProperties": {
+                                "url": "https://prod-11.eastus2.logic.azure.com:443/workflows/84676df7705644cbaa52bc7e39cd6b2d/triggers/manual/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=d7oVQwej0lJKdxBLEK5QUdsH-z3l5-KhYXAP6B_3t8M",
+                                "method": "POST",
+                                "headers": {
+                                    "Content-Type": "application/json"
+                                },
+                                "body": {
+                                    "value": "{\"fn_name\" : \"@{item().Name}\"}",
+                                    "type": "Expression"
+                                }
+                            }
+                        },
+                        {
+                            "name": "Wait",
+                            "description": "Wait 10 seconds before next Logic Apps call",
+                            "type": "Wait",
+                            "dependsOn": [
+                                {
+                                    "activity": "LogicApps_RefreshFromFunction",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "typeProperties": {
+                                "waitTimeInSeconds": 10
                             }
                         }
                     ]
