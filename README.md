@@ -1,13 +1,22 @@
 # PlayerCentricIntelligence
 
 # Introduction 
-Our goal was to shed light on user acquistion, in-game behavior, and app moneitzation by supplementing PlayFab event data with several complementary sources.
+Our goal was to shed light on user acquistion, in-game behavior, and app monetization by supplementing PlayFab event data with several complementary sources.
 
 PlayFab's Azure Data Explorer database is vast, so we preferred to bring all other data to _it_, rather than vice-versa.
 
 This project does so with a handful of Azure resources, most notably Data Factory. It also contains sample KQL queries that we used to model data and to validate it against the raw sources.
 
 Note that our solutions begins with a relational database that Fivetran populates from API and S3 sources. We use SQL DW, but a standard Azure SQL DB should be a suitable and lower-cost alternative. You might bypass this by handling all connections through Azure Data Factory's HTTP connector, but we heartily recommend Fivetran as a simpler and more cost-effective alternative to maintaining often-volatile API connections.
+
+# The Data Model
+
+We've included (in _Model.zip_) some sample ADX queries that yield fact and dimension tables. We designed these specifically for the included dashboards, so most will not apply to all apps from all users. However, they do shed some light on how these sources can join to each other.
+
+Speaking of joins, **every source must include PlayFab user IDs**. Otherwise, it may be possible to link users by some combination of device, location, and/or contact info, but that's a difficult and imprecise task.
+
+A conformed model is generally not app-specific, by definition, so we wrote all of those queries to use the _Default_ DB. That's the target of the replication pipeline below. As of writing, ADX does not automatically update tables derived from other DBs, so our pipeline contains a workaround for refreshes (more on that later).
+
 
 # Getting Started
 Exact configuration depends heavily on which sources you use, but the general steps are:
